@@ -1,1 +1,53 @@
+  </style>
+</head>
+<body>
 
+<img id="enterImg"
+     src="https://i.imgur.com/EP1MbQL_d.webp?maxwidth=760&fidelity=grand"
+     alt="Enter">
+
+<div id="preloadContainer">
+  <iframe
+    id="preloadVideo"
+    src="https://streamable.com/e/8yg8se"
+  ></iframe>
+</div>
+
+<div id="container">
+  <iframe
+    id="video"
+    src=""
+    allow="autoplay; fullscreen"
+    allowfullscreen
+  ></iframe>
+</div>
+
+<script>
+  const enterImg = document.getElementById("enterImg");
+  const video = document.getElementById("video");
+  const preloadVideo = document.getElementById("preloadVideo");
+
+  preloadVideo.onload = () => {
+    console.log("Video preloaded in background");
+  };
+
+  enterImg.addEventListener("click", () => {
+
+    enterImg.classList.add("fadeOut");
+
+    setTimeout(() => {
+      video.src = "https://streamable.com/e/8yg8se";
+
+      document.getElementById("container").style.display = "block";
+
+      const cont = document.getElementById("container");
+      if (cont.requestFullscreen) cont.requestFullscreen();
+      else if (cont.webkitRequestFullscreen) cont.webkitRequestFullscreen();
+
+      enterImg.style.display = "none";
+    }, 400);
+  });
+</script>
+
+</body>
+</html>
