@@ -348,9 +348,8 @@ function checkCollisions() {
   for (const record of loadedChunks.values()) {
     for (const b of record.buildingEntries) {
       const dx=dronePos.x-b.x, dz=dronePos.z-b.z;
-      const horiz = Math.sqrt(dx*dx+dz*dz);
-      const radius = Math.sqrt((b.w/2)**2 + (b.d/2)**2);
-      if (horiz < radius+PLAYER_RADIUS && dronePos.y < b.h+PLAYER_RADIUS && dronePos.y > -PLAYER_RADIUS) return true;
+      if (Math.abs(dx) < b.w/2+PLAYER_RADIUS && Math.abs(dz) < b.d/2+PLAYER_RADIUS &&
+          dronePos.y < b.h+PLAYER_RADIUS && dronePos.y > -PLAYER_RADIUS) return true;
     }
     for (const d of record.droneEntries) {
       const dx=dronePos.x-d.x, dy=dronePos.y-d.y, dz=dronePos.z-d.z;
