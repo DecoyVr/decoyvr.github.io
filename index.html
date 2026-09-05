@@ -1,894 +1,525 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>QUIZTRON MK.III — Trivia Cabinet</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Sim 3D Preview</title>
 <style>
-  :root{
-    --bg:#050403;
-    --bezel-a:#221b15;
-    --bezel-b:#140f0b;
-    --bezel-hi:#3a2e22;
-    --screen-bg:#0c0906;
-    --amber:#ffb000;
-    --amber-bright:#ffd873;
-    --amber-dim:#7a5200;
-    --amber-glow:rgba(255,176,0,.45);
-    --red:#ff3b30;
-    --red-dim:#5a1a15;
-    --green:#3ddc74;
-    --text:#e9dcc3;
-    --text-dim:#8f8069;
-    --font-display:'Press Start 2P', monospace;
-    --font-mono:'Share Tech Mono', monospace;
-    --cab-max:640px;
-    --cols:2;
+  html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family:sans-serif; touch-action:none; }
+  canvas { display:block; }
+  #credit {
+    position: fixed; left:10px; bottom:8px;
+    color: rgba(255,255,255,0.75); font-size:12px; letter-spacing:0.5px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
   }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{height:100%;}
-  body{
-    background:
-      radial-gradient(ellipse at 50% -10%, #1a140d 0%, var(--bg) 55%);
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:24px 14px;
-    font-family:var(--font-mono);
-    color:var(--text);
-    -webkit-font-smoothing:antialiased;
+  #hint {
+    position: fixed; right:10px; bottom:8px;
+    color: rgba(255,255,255,0.6); font-size:11px; text-align:right;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
   }
-  body.device-handheld{ --cab-max:360px; }
-  body.device-tablet{ --cab-max:600px; }
-  body.device-desktop{ --cab-max:920px; }
-
-  button{font-family:inherit; cursor:pointer; color:inherit;}
-  button:focus-visible, .answer-btn:focus-visible{
-    outline:2px solid var(--amber-bright);
-    outline-offset:2px;
+  #score {
+    position: fixed; left:10px; top:10px;
+    color: rgba(255,255,255,0.9); font: 14px monospace;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
   }
-
-  /* ---------- CABINET ---------- */
-  .cabinet{ width:100%; max-width:var(--cab-max); transition:max-width .5s ease; }
-  .bezel{
-    background:
-      linear-gradient(160deg, var(--bezel-a), var(--bezel-b) 60%);
-    border-radius:22px;
-    padding:16px 16px 12px;
-    box-shadow:
-      0 30px 60px -20px rgba(0,0,0,.8),
-      inset 0 1px 0 rgba(255,255,255,.06),
-      inset 0 0 0 1px rgba(0,0,0,.6);
-    position:relative;
+  #popups {
+    position: fixed; top:26%; left:0; width:100%; height:120px;
+    pointer-events:none; overflow:visible;
   }
-  .bezel::before{
-    content:"";
-    position:absolute; inset:0;
-    border-radius:22px;
-    padding:1px;
-    background:linear-gradient(160deg, var(--bezel-hi), transparent 40%);
-    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite:xor; mask-composite:exclude;
-    pointer-events:none;
+  .popup {
+    position:absolute; left:50%; top:0; transform:translate(-50%,0);
+    font:bold 22px sans-serif; text-shadow:0 2px 6px rgba(0,0,0,0.7);
+    white-space:nowrap; animation: popupFloat 1.15s ease-out forwards;
   }
-  .screen{
-    position:relative;
-    background:var(--screen-bg);
-    border-radius:12px;
-    overflow:hidden;
-    box-shadow:inset 0 0 60px rgba(0,0,0,.85), inset 0 0 3px rgba(0,0,0,.9);
-    min-height:520px;
-    display:flex;
-    animation:flicker 7s infinite;
+  @keyframes popupFloat {
+    0%   { opacity:0; transform:translate(-50%,10px) scale(0.8); }
+    15%  { opacity:1; transform:translate(-50%,-6px) scale(1.1); }
+    100% { opacity:0; transform:translate(-50%,-70px) scale(1); }
   }
-  .scanlines{
-    position:absolute; inset:0; pointer-events:none; z-index:5;
-    background:repeating-linear-gradient(
-      to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 1px, rgba(0,0,0,.18) 2px, rgba(0,0,0,0) 3px
-    );
-    mix-blend-mode:multiply;
+  #gameover {
+    position: fixed; inset:0;
+    background: rgba(0,0,0,0.55);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#fff; text-align:center;
   }
-  .vignette{
-    position:absolute; inset:0; pointer-events:none; z-index:5;
-    background:radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0,0,0,.6) 100%);
-  }
-  .glow{
-    position:absolute; inset:0; pointer-events:none; z-index:4;
-    box-shadow:inset 0 0 90px var(--amber-glow);
-    opacity:.18;
-  }
-  .screen.shake{ animation:flicker 7s infinite, shake .32s ease; }
-  @keyframes shake{
-    0%,100%{ transform:translate(0,0); }
-    20%{ transform:translate(-6px,0); }
-    40%{ transform:translate(5px,0); }
-    60%{ transform:translate(-4px,0); }
-    80%{ transform:translate(3px,0); }
-  }
-  @keyframes flicker{
-    0%,100%{ filter:brightness(1); }
-    92%{ filter:brightness(1); }
-    93%{ filter:brightness(.93); }
-    94%{ filter:brightness(1); }
-    96%{ filter:brightness(.97); }
-    97%{ filter:brightness(1); }
-  }
-
-  .cabinet-label{
-    text-align:center;
-    font-family:var(--font-display);
-    font-size:10px;
-    letter-spacing:2px;
-    color:var(--amber-dim);
-    padding-top:14px;
-  }
-  .cabinet-label span{ color:var(--text-dim); }
-
-  /* ---------- VIEWS ---------- */
-  .view{
-    display:none;
-    width:100%;
-    padding:34px 26px;
-    overflow-y:auto;
-    z-index:2;
-    position:relative;
-  }
-  .view.active{ display:flex; flex-direction:column; }
-  .stack{ display:flex; flex-direction:column; gap:18px; margin:auto 0; }
-  .stack.center{ text-align:center; align-items:center; }
-
-  .eyebrow{
-    font-size:12px;
-    letter-spacing:3px;
-    color:var(--amber-dim);
-    text-transform:uppercase;
-  }
-  .title{
-    font-family:var(--font-display);
-    font-size:clamp(20px,5vw,30px);
-    color:var(--amber-bright);
-    text-shadow:0 0 14px var(--amber-glow);
-    line-height:1.4;
-  }
-  .sub{ color:var(--text-dim); font-size:16px; max-width:46ch; }
-
-  /* ---------- BOOT ---------- */
-  .boot{ text-align:center; margin:auto; display:flex; flex-direction:column; align-items:center; gap:22px; }
-  .logo{ font-family:var(--font-display); font-size:clamp(22px,6vw,34px); letter-spacing:2px; }
-  .logo-q{ color:var(--amber-bright); text-shadow:0 0 16px var(--amber-glow); }
-  .logo-tron{ color:var(--text); }
-  .logo-sub{ font-size:13px; letter-spacing:3px; color:var(--text-dim); margin-top:-8px; }
-  .boot-log{
-    font-size:15px; line-height:1.8; color:var(--amber);
-    min-height:110px; text-align:left; width:100%; max-width:340px;
-  }
-  .boot-log .ok{ color:var(--green); }
-
-  .btn{
-    font-family:var(--font-mono);
-    font-size:15px;
-    letter-spacing:1px;
-    background:transparent;
-    border:1px solid var(--amber-dim);
-    color:var(--amber);
-    padding:12px 22px;
-    border-radius:8px;
-    transition:all .15s ease;
-  }
-  .btn:hover{ border-color:var(--amber); background:rgba(255,176,0,.08); }
-  .btn-primary{
-    border-color:var(--amber);
-    color:#1a1200;
-    background:linear-gradient(180deg, var(--amber-bright), var(--amber));
-    font-weight:bold;
-    box-shadow:0 0 22px var(--amber-glow);
-  }
-  .btn-primary:hover{ filter:brightness(1.08); }
-  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
-  .blink{ animation:blink 1.3s steps(1) infinite; }
-  @keyframes blink{ 50%{ opacity:.35; } }
-
-  /* ---------- DEVICE / DIFFICULTY / CATEGORY CARDS ---------- */
-  .device-grid, .diff-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(150px,1fr));
-    gap:12px;
-  }
-  .device-card, .diff-card, .cat-card{
-    background:rgba(255,176,0,.03);
-    border:1px solid var(--amber-dim);
-    border-radius:10px;
-    padding:16px 14px;
-    text-align:left;
-    display:flex; flex-direction:column; gap:8px;
-    transition:all .15s ease;
-    position:relative;
-  }
-  .device-card{ align-items:center; text-align:center; }
-  .device-card:hover, .diff-card:hover, .cat-card:hover{
-    border-color:var(--amber);
-    background:rgba(255,176,0,.09);
-    transform:translateY(-2px);
-  }
-  .device-card svg, .cat-card svg{
-    width:30px; height:30px; stroke:var(--amber); fill:none; stroke-width:1.4;
-  }
-  .device-card span{ font-size:14px; letter-spacing:1px; color:var(--amber-bright); font-weight:bold; }
-  .device-card small{ color:var(--text-dim); font-size:12px; }
-
-  .diff-name{ font-family:var(--font-display); font-size:13px; color:var(--amber-bright); }
-  .diff-meta{ font-size:13px; color:var(--text-dim); }
-  .diff-flavor{ font-size:13px; color:var(--text); opacity:.8; }
-  .diff-danger{ border-color:var(--red-dim); }
-  .diff-danger .diff-name{ color:var(--red); }
-  .diff-danger:hover{ border-color:var(--red); background:rgba(255,59,48,.08); }
-
-  .cat-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(140px,1fr));
-    gap:12px;
-  }
-  .cat-card{ align-items:flex-start; gap:6px; }
-  .cat-card span.cname{ font-size:14px; font-weight:bold; letter-spacing:1px; color:var(--amber-bright); }
-  .cat-card span.csub{ font-size:11px; color:var(--text-dim); }
-  .cat-best{
-    position:absolute; top:8px; right:10px;
-    font-size:10px; color:var(--green); letter-spacing:1px;
-  }
-
-  /* ---------- PROGRESS / DIAGNOSTIC ---------- */
-  .diag-log{ font-size:14px; line-height:1.9; color:var(--amber); min-height:150px; }
-  .diag-log .ok{ color:var(--green); }
-  .progress-track{
-    width:100%; height:10px; border:1px solid var(--amber-dim); border-radius:6px; overflow:hidden;
-    background:rgba(255,176,0,.05);
-  }
-  .progress-fill{
-    height:100%; width:0%;
-    background:linear-gradient(90deg, var(--amber-dim), var(--amber-bright));
-    transition:width .25s linear;
-    box-shadow:0 0 10px var(--amber-glow);
-  }
-
-  /* ---------- GAME ---------- */
-  .game{ display:flex; flex-direction:column; gap:14px; height:100%; }
-  .hud{
-    display:flex; align-items:center; justify-content:space-between;
-    font-size:12px; letter-spacing:1px; color:var(--text-dim);
-  }
-  .hud-score span{ font-family:var(--font-display); font-size:17px; color:var(--amber-bright); display:block; margin-top:2px; }
-  .hud-q{ font-size:14px; color:var(--amber); }
-  .life{
-    width:12px; height:12px; display:inline-block; margin-left:5px;
-    background:var(--amber); box-shadow:0 0 6px var(--amber-glow); border-radius:2px;
-  }
-  .life.lost{ background:transparent; border:1px solid var(--red-dim); box-shadow:none; }
-
-  .timer-track{ width:100%; height:7px; background:rgba(255,176,0,.08); border-radius:4px; overflow:hidden; }
-  .timer-fill{ height:100%; width:100%; background:var(--amber); transition:width .1s linear, background .3s ease; }
-  .timer-fill.warn{ background:var(--red); box-shadow:0 0 10px rgba(255,59,48,.6); }
-
-  .question-panel{
-    border:1px solid var(--amber-dim);
-    border-radius:10px;
-    padding:18px;
-    background:rgba(255,176,0,.03);
-    min-height:110px;
-    display:flex; flex-direction:column; gap:10px; justify-content:center;
-  }
-  .cat-tag{ font-size:11px; letter-spacing:2px; color:var(--amber-dim); }
-  .question-text{ font-size:18px; line-height:1.5; color:var(--text); }
-
-  .answers{
-    display:grid;
-    grid-template-columns:repeat(var(--cols), 1fr);
-    gap:10px;
-  }
-  .answer-btn{
-    display:flex; align-items:center; gap:10px;
-    text-align:left;
-    background:rgba(255,176,0,.03);
-    border:1px solid var(--amber-dim);
-    border-radius:9px;
-    padding:12px 14px;
-    font-size:14px;
-    transition:all .12s ease;
-  }
-  .answer-btn:hover:not([disabled]){ border-color:var(--amber); background:rgba(255,176,0,.09); }
-  .answer-btn[disabled]{ pointer-events:none; }
-  .answer-btn.correct{ border-color:var(--green); background:rgba(61,220,116,.12); color:var(--green); }
-  .answer-btn.wrong{ border-color:var(--red); background:rgba(255,59,48,.12); color:var(--red); }
-  .ans-letter{
-    font-family:var(--font-display); font-size:11px;
-    width:22px; height:22px; border:1px solid currentColor; border-radius:5px;
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
-  }
-
-  .feedback{
-    text-align:center; font-family:var(--font-display); font-size:13px;
-    min-height:18px; letter-spacing:1px;
-  }
-  .feedback.good{ color:var(--green); }
-  .feedback.bad{ color:var(--red); }
-
-  /* ---------- GAME OVER ---------- */
-  .glitch{ animation:none; }
-  .final-score{
-    font-family:var(--font-display); font-size:clamp(34px,10vw,52px);
-    color:var(--amber-bright); text-shadow:0 0 20px var(--amber-glow);
-  }
-  .final-stats{ color:var(--text-dim); font-size:14px; letter-spacing:1px; }
-  .badge{
-    font-family:var(--font-display); font-size:11px; color:#1a1200;
-    background:linear-gradient(180deg, var(--amber-bright), var(--amber));
-    padding:8px 14px; border-radius:20px; letter-spacing:1px;
-    box-shadow:0 0 20px var(--amber-glow);
-  }
-
-  @media (prefers-reduced-motion: reduce){
-    .screen{ animation:none; }
-    .blink{ animation:none; opacity:1; }
-    .screen.shake{ animation:none; }
-  }
-  @media (max-width:420px){
-    .view{ padding:26px 18px; }
-    .cols-force-1{ --cols:1; }
-  }
+  #gameover.hidden { display:none; }
+  #gameover .title { font-size:36px; font-weight:bold; font-family:sans-serif; }
+  #gameover .sub { font-size:16px; margin-top:8px; font-family:sans-serif; }
 </style>
 </head>
-<body class="device-tablet">
-<div class="cabinet">
-  <div class="bezel">
-    <div class="screen" id="screen">
-      <div class="scanlines"></div>
-      <div class="glow"></div>
-
-      <section class="view active" id="view-boot">
-        <div class="boot">
-          <div class="logo"><span class="logo-q">QUIZ</span><span class="logo-tron">TRON</span></div>
-          <div class="logo-sub">MODEL MK.III · TRIVIA CABINET</div>
-          <div class="boot-log" id="bootLog"></div>
-          <button class="btn btn-primary blink" id="btnStart">▶ INITIALIZE SYSTEM</button>
-        </div>
-      </section>
-
-      <section class="view" id="view-calibrate">
-        <div class="stack">
-          <div class="eyebrow">STEP 1 / 3</div>
-          <h1 class="title">DISPLAY CALIBRATION</h1>
-          <p class="sub">Tell the cabinet what you're playing on, and it'll resize itself to fit.</p>
-          <div class="device-grid">
-            <button class="device-card" data-device="handheld">
-              <svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="10" y1="18.4" x2="14" y2="18.4"/></svg>
-              <span>HANDHELD</span><small>Stacked, thumb-sized controls</small>
-            </button>
-            <button class="device-card" data-device="tablet">
-              <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-              <span>TABLET</span><small>Balanced two-column layout</small>
-            </button>
-            <button class="device-card" data-device="desktop">
-              <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg>
-              <span>DESKTOP</span><small>Wide monitor layout</small>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="view-diagnostic">
-        <div class="stack center" style="margin:auto;">
-          <div class="eyebrow">RUNNING SELF-TEST</div>
-          <div class="diag-log" id="diagLog"></div>
-          <div class="progress-track"><div class="progress-fill" id="diagFill"></div></div>
-        </div>
-      </section>
-
-      <section class="view" id="view-difficulty">
-        <div class="stack">
-          <div class="eyebrow">STEP 2 / 3</div>
-          <h1 class="title">SELECT DIFFICULTY</h1>
-          <div class="diff-grid">
-            <button class="diff-card" data-mode="normal">
-              <div class="diff-name">NORMAL</div>
-              <div class="diff-meta">3 LIVES · 20s / Q · SCORE x1</div>
-              <div class="diff-flavor">A fair fight. Good for warming up the circuits.</div>
-            </button>
-            <button class="diff-card" data-mode="hard">
-              <div class="diff-name">HARD</div>
-              <div class="diff-meta">2 LIVES · 12s / Q · SCORE x1.5 · MISS −25</div>
-              <div class="diff-flavor">The clock gets mean. Wrong answers cost you.</div>
-            </button>
-            <button class="diff-card diff-danger" data-mode="superhard">
-              <div class="diff-name">⚠ SUPER HARD</div>
-              <div class="diff-meta">1 LIFE · 7s / Q · SCORE x2.5 · MISS −50</div>
-              <div class="diff-flavor">One life. One mistake. No mercy.</div>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="view" id="view-category">
-        <div class="stack">
-          <div class="eyebrow">STEP 3 / 3 · <span id="modeLabel">NORMAL</span></div>
-          <h1 class="title">SELECT CARTRIDGE</h1>
-          <div class="cat-grid" id="catGrid"></div>
-        </div>
-      </section>
-
-      <section class="view" id="view-game">
-        <div class="game">
-          <div class="hud">
-            <div class="hud-score">SCORE<span id="score">0</span></div>
-            <div class="hud-q">Q <span id="qnum">1</span>/<span id="qtotal">10</span></div>
-            <div class="hud-lives" id="lives"></div>
-          </div>
-          <div class="timer-track"><div class="timer-fill" id="timerFill"></div></div>
-          <div class="question-panel">
-            <div class="cat-tag" id="catTag">SCIENCE</div>
-            <div class="question-text" id="questionText">Loading…</div>
-          </div>
-          <div class="answers" id="answers"></div>
-          <div class="feedback" id="feedback"></div>
-        </div>
-      </section>
-
-      <section class="view" id="view-gameover">
-        <div class="stack center" style="margin:auto;">
-          <div class="eyebrow">TRANSMISSION ENDED</div>
-          <h1 class="title">GAME OVER</h1>
-          <div class="badge" id="hsBadge" hidden>★ NEW HIGH SCORE ★</div>
-          <div class="final-score" id="finalScore">0</div>
-          <div class="final-stats" id="finalStats"></div>
-          <div class="btn-row" style="margin-top:10px;">
-            <button class="btn btn-primary" id="btnPlayAgain">PLAY AGAIN</button>
-            <button class="btn" id="btnChangeCat">CHANGE CARTRIDGE</button>
-            <button class="btn" id="btnMainMenu">DIFFICULTY</button>
-          </div>
-        </div>
-      </section>
-    </div>
-    <div class="cabinet-label">QUIZTRON <span>MK.III</span></div>
-  </div>
+<body>
+<div id="score">score: 0</div>
+<div id="popups"></div>
+<div id="gameover" class="hidden">
+  <div class="title">GAME OVER</div>
+  <div class="sub">press the button to continue</div>
 </div>
+<div id="credit">By: @DecoyVR</div>
+<div id="hint">drag: pitch/roll · tap: button<br>2-finger hold or Space: boost</div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-(function(){
-  "use strict";
+// ---------- Tunables ----------
+const MAX_PITCH_RATE = 1.3, MAX_ROLL_RATE = 2.2, MAX_YAW_RATE = 0.9; // rad/s
+const SPEED = 150, DIVE_RANGE = 110, MIN_SPEED = 70, MAX_SPEED = 260; // world units / sec
+const BOOST_BONUS = 150, MAX_BOOST_SPEED = 420;
+const CHASE_DIST = 55, CHASE_HEIGHT = 20;
+const PLAYER_RADIUS = 12, DRONE_RADIUS = 14;
+const CHUNK_SIZE = 300, LOAD_RADIUS = 4, UNLOAD_BUFFER = 2;
+const NORMAL_FOV = 70, BOOST_FOV = 84;
 
-  /* ============ QUESTION BANK ============ */
-  const QUESTIONS = {
-    science:[
-      {q:"What planet is known as the Red Planet?",c:["Venus","Mars","Jupiter","Mercury"],a:1,t:1,cat:"SCIENCE"},
-      {q:"What gas do plants absorb from the air for photosynthesis?",c:["Oxygen","Nitrogen","Carbon Dioxide","Hydrogen"],a:2,t:1,cat:"SCIENCE"},
-      {q:"What is the chemical symbol for water?",c:["H2O","CO2","O2","NaCl"],a:0,t:1,cat:"SCIENCE"},
-      {q:"How many bones are in the adult human body?",c:["186","206","150","300"],a:1,t:1,cat:"SCIENCE"},
-      {q:"What force pulls objects toward the Earth?",c:["Friction","Magnetism","Gravity","Tension"],a:2,t:1,cat:"SCIENCE"},
-      {q:"What is the powerhouse of the cell?",c:["Nucleus","Ribosome","Golgi apparatus","Mitochondria"],a:3,t:2,cat:"SCIENCE"},
-      {q:"What element has atomic number 1?",c:["Helium","Hydrogen","Oxygen","Carbon"],a:1,t:2,cat:"SCIENCE"},
-      {q:"What is the approximate speed of light?",c:["30,000 km/s","150,000 km/s","300,000 km/s","3,000 km/s"],a:2,t:2,cat:"SCIENCE"},
-      {q:"Which blood type is the universal donor?",c:["AB","A positive","O negative","B negative"],a:2,t:2,cat:"SCIENCE"},
-      {q:"What is the study of fungi called?",c:["Botany","Mycology","Zoology","Entomology"],a:1,t:2,cat:"SCIENCE"},
-      {q:"What particle, confirmed in 2012, gives other particles mass?",c:["Photon","Neutrino","Higgs boson","Gluon"],a:2,t:3,cat:"SCIENCE"},
-      {q:"What process generates energy inside stars?",c:["Fission","Combustion","Radiation","Fusion"],a:3,t:3,cat:"SCIENCE"},
-      {q:"What term describes an organism that thrives in extreme environments?",c:["Extremophile","Endophyte","Thermophile","Halophile"],a:0,t:3,cat:"SCIENCE"},
-      {q:"Which enzyme unwinds the DNA double helix during replication?",c:["Ligase","Polymerase","Helicase","Primase"],a:2,t:3,cat:"SCIENCE"},
-      {q:"The Chandrasekhar limit concerns the stability of what?",c:["Black holes","White dwarfs","Neutron star spin","Supernova timing"],a:1,t:3,cat:"SCIENCE"}
-    ],
-    flags:[
-      {q:"Which country's flag features a red maple leaf?",c:["USA","Canada","Norway","Austria"],a:1,t:1,cat:"FLAGS"},
-      {q:"Which flag has a red circle centered on white?",c:["South Korea","Japan","Bangladesh","Palau"],a:1,t:1,cat:"FLAGS"},
-      {q:"Which country's flag has stars and stripes?",c:["USA","Liberia","Chile","Cuba"],a:0,t:1,cat:"FLAGS"},
-      {q:"Which country's flag is a green, white, and orange vertical tricolor?",c:["Italy","Ireland","Ivory Coast","Mexico"],a:1,t:1,cat:"FLAGS"},
-      {q:"Which flag has the Union Jack in its corner along with the Southern Cross?",c:["Australia","Fiji","South Africa","Canada"],a:0,t:1,cat:"FLAGS"},
-      {q:"Which country's flag has five yellow stars on a red field?",c:["Vietnam","China","North Korea","Turkey"],a:1,t:2,cat:"FLAGS"},
-      {q:"Which African country's flag features a black star at its center?",c:["Ghana","Senegal","Kenya","Nigeria"],a:0,t:2,cat:"FLAGS"},
-      {q:"Which country's flag has a green cedar tree at its center?",c:["Lebanon","Cyprus","Morocco","Jordan"],a:0,t:2,cat:"FLAGS"},
-      {q:"Which country's flag is a green field with a red circle (no crescent)?",c:["Bangladesh","Turkey","Tunisia","Algeria"],a:0,t:2,cat:"FLAGS"},
-      {q:"Which country's flag features a golden eagle grasping a snake?",c:["Peru","Mexico","Ecuador","Spain"],a:1,t:2,cat:"FLAGS"},
-      {q:"Which is the only national flag that is not rectangular?",c:["Nepal","Bhutan","Switzerland","Vatican City"],a:0,t:3,cat:"FLAGS"},
-      {q:"Which country's flag depicts an AK-47 rifle?",c:["Angola","Mozambique","Zimbabwe","Guinea-Bissau"],a:1,t:3,cat:"FLAGS"},
-      {q:"Which country's flag shows a crossed machete and hoe beneath a star?",c:["Angola","Mozambique","Congo","Namibia"],a:0,t:3,cat:"FLAGS"},
-      {q:"Which South American country's flag depicts a condor within its coat of arms?",c:["Bolivia","Peru","Ecuador","Chile"],a:2,t:3,cat:"FLAGS"},
-      {q:"Which country's flag features a sun with a human face on it?",c:["Argentina","Uruguay","Kazakhstan","Philippines"],a:1,t:3,cat:"FLAGS"}
-    ],
-    history:[
-      {q:"In what year did World War II end?",c:["1943","1945","1947","1950"],a:1,t:1,cat:"HISTORY"},
-      {q:"Who was the first President of the United States?",c:["John Adams","Thomas Jefferson","George Washington","Ben Franklin"],a:2,t:1,cat:"HISTORY"},
-      {q:"Which ancient civilization built the pyramids of Giza?",c:["Romans","Egyptians","Greeks","Mesopotamians"],a:1,t:1,cat:"HISTORY"},
-      {q:"Which wall divided a German city during the Cold War?",c:["Berlin Wall","Great Wall","Atlantic Wall","Iron Curtain"],a:0,t:1,cat:"HISTORY"},
-      {q:"Who was the principal author of the Declaration of Independence?",c:["John Adams","Thomas Jefferson","James Madison","Alexander Hamilton"],a:1,t:1,cat:"HISTORY"},
-      {q:"The Renaissance began in which country?",c:["France","Spain","Italy","Germany"],a:2,t:2,cat:"HISTORY"},
-      {q:"Julius Caesar rose to power in which empire?",c:["Roman Empire","Byzantine Empire","Persian Empire","Macedonian Empire"],a:0,t:2,cat:"HISTORY"},
-      {q:"In what year did the Titanic sink?",c:["1905","1912","1918","1923"],a:1,t:2,cat:"HISTORY"},
-      {q:"Who was Britain's Prime Minister for most of WWII?",c:["Neville Chamberlain","Clement Attlee","Winston Churchill","Anthony Eden"],a:2,t:2,cat:"HISTORY"},
-      {q:"Which revolution began in France in 1789?",c:["Industrial Revolution","French Revolution","Glorious Revolution","Bolshevik Revolution"],a:1,t:2,cat:"HISTORY"},
-      {q:"Which treaty formally ended World War I?",c:["Treaty of Versailles","Treaty of Paris","Treaty of Ghent","Congress of Vienna"],a:0,t:3,cat:"HISTORY"},
-      {q:"Who was the last Tsar of Russia?",c:["Alexander III","Peter the Great","Nicholas II","Ivan IV"],a:2,t:3,cat:"HISTORY"},
-      {q:"Which 1815 battle ended Napoleon's rule for good?",c:["Battle of Trafalgar","Battle of Austerlitz","Battle of Leipzig","Battle of Waterloo"],a:3,t:3,cat:"HISTORY"},
-      {q:"The Peace of Westphalia (1648) ended which conflict?",c:["Hundred Years' War","Thirty Years' War","War of Spanish Succession","Napoleonic Wars"],a:1,t:3,cat:"HISTORY"},
-      {q:"Who was the Byzantine Emperor when Constantinople fell in 1453?",c:["Justinian I","Constantine XI","Michael VIII","Basil II"],a:1,t:3,cat:"HISTORY"}
-    ],
-    geography:[
-      {q:"What is traditionally cited as the longest river in the world?",c:["Amazon","Nile","Yangtze","Mississippi"],a:1,t:1,cat:"GEOGRAPHY"},
-      {q:"What is the largest continent by area?",c:["Africa","Asia","North America","Europe"],a:1,t:1,cat:"GEOGRAPHY"},
-      {q:"What is the smallest country in the world?",c:["Monaco","San Marino","Vatican City","Liechtenstein"],a:2,t:1,cat:"GEOGRAPHY"},
-      {q:"Which is the largest hot desert in the world?",c:["Gobi","Kalahari","Sahara","Arabian"],a:2,t:1,cat:"GEOGRAPHY"},
-      {q:"What is the capital of France?",c:["Lyon","Marseille","Paris","Nice"],a:2,t:1,cat:"GEOGRAPHY"},
-      {q:"Which mountain is the tallest above sea level?",c:["K2","Mount Everest","Kangchenjunga","Denali"],a:1,t:2,cat:"GEOGRAPHY"},
-      {q:"What is the capital of Australia?",c:["Sydney","Melbourne","Canberra","Perth"],a:2,t:2,cat:"GEOGRAPHY"},
-      {q:"Which country has the most natural lakes?",c:["Russia","Canada","Finland","USA"],a:1,t:2,cat:"GEOGRAPHY"},
-      {q:"Which strait separates Europe and Africa?",c:["Strait of Hormuz","Bosphorus","Strait of Gibraltar","Bering Strait"],a:2,t:2,cat:"GEOGRAPHY"},
-      {q:"Which country straddles Europe and Asia across the Bosphorus?",c:["Greece","Turkey","Georgia","Armenia"],a:1,t:2,cat:"GEOGRAPHY"},
-      {q:"What is the deepest known point in the ocean called?",c:["Puerto Rico Trench","Java Trench","Challenger Deep","Tonga Trench"],a:2,t:3,cat:"GEOGRAPHY"},
-      {q:"Which African nation was historically known as Abyssinia?",c:["Sudan","Ethiopia","Eritrea","Somalia"],a:1,t:3,cat:"GEOGRAPHY"},
-      {q:"What is the capital of Kazakhstan?",c:["Almaty","Bishkek","Astana","Tashkent"],a:2,t:3,cat:"GEOGRAPHY"},
-      {q:"Which is the saltiest large body of water on Earth?",c:["Great Salt Lake","Dead Sea","Caspian Sea","Red Sea"],a:1,t:3,cat:"GEOGRAPHY"},
-      {q:"What is the world's longest mountain range, mostly underwater?",c:["Andes","Rockies","Mid-Atlantic Ridge","Himalayas"],a:2,t:3,cat:"GEOGRAPHY"}
-    ],
-    misc:[
-      {q:"How many continents are there?",c:["5","6","7","8"],a:2,t:1,cat:"GENERAL"},
-      {q:"What is the largest ocean on Earth?",c:["Atlantic","Indian","Arctic","Pacific"],a:3,t:1,cat:"GENERAL"},
-      {q:"How many strings does a standard guitar have?",c:["4","6","5","7"],a:1,t:1,cat:"GENERAL"},
-      {q:"What is the tallest animal in the world?",c:["Elephant","Giraffe","Ostrich","Camel"],a:1,t:1,cat:"GENERAL"},
-      {q:"How many colors are in a rainbow?",c:["5","6","7","8"],a:2,t:1,cat:"GENERAL"},
-      {q:"What is the currency of Japan?",c:["Won","Yuan","Yen","Ringgit"],a:2,t:2,cat:"GENERAL"},
-      {q:"Which instrument typically has 88 keys?",c:["Organ","Piano","Harpsichord","Accordion"],a:1,t:2,cat:"GENERAL"},
-      {q:"What is the hardest naturally occurring substance on Earth?",c:["Quartz","Titanium","Diamond","Graphite"],a:2,t:2,cat:"GENERAL"},
-      {q:"Who painted the Mona Lisa?",c:["Michelangelo","Raphael","Leonardo da Vinci","Donatello"],a:2,t:2,cat:"GENERAL"},
-      {q:"Which language has the most native speakers worldwide?",c:["English","Spanish","Hindi","Mandarin Chinese"],a:3,t:2,cat:"GENERAL"},
-      {q:"What is the only mammal capable of true flight?",c:["Flying squirrel","Bat","Sugar glider","Colugo"],a:1,t:3,cat:"GENERAL"},
-      {q:"What is the smallest bone in the human body?",c:["Stapes","Malleus","Incus","Hyoid"],a:0,t:3,cat:"GENERAL"},
-      {q:"Which civilization is credited with inventing paper?",c:["Egypt","China","Greece","Mesopotamia"],a:1,t:3,cat:"GENERAL"},
-      {q:"What is the most abundant gas in Earth's atmosphere?",c:["Oxygen","Carbon Dioxide","Nitrogen","Argon"],a:2,t:3,cat:"GENERAL"},
-      {q:"In chess, which piece is the only one that can jump over others?",c:["Bishop","Rook","Queen","Knight"],a:3,t:3,cat:"GENERAL"}
-    ]
+let pitch = 0, roll = 0, firstPerson = false, boostActive = false, wasBoosting = false;
+let mode = 'play', score = 0, lastSpeed = SPEED;
+let cumPitchAngle = 0, cumRollAngle = 0;
+let lastTime = performance.now();
+let dragging = false, lastX = 0, lastY = 0, moved = false;
+
+let scene, camera, renderer, ground;
+let dronePos = new THREE.Vector3(0,150,0);
+let droneQuat = new THREE.Quaternion();
+let playerDroneMesh;
+let loadedChunks = new Map();
+let trailPositions = [], trailLine, trailGeometry;
+
+const scoreEl = document.getElementById('score');
+const gameoverEl = document.getElementById('gameover');
+const popupsEl = document.getElementById('popups');
+const buildingColors = [0x8b96a6,0x7c8797,0xa9b4c4,0xc9b896,0x6b7686];
+
+// ---------- Audio (Web Audio API, no external files) ----------
+let audioCtx=null, engineOsc=null, engineGain=null;
+function ensureAudio() {
+  if (audioCtx) { if (audioCtx.state==='suspended') audioCtx.resume(); return; }
+  try {
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    engineOsc = audioCtx.createOscillator();
+    engineOsc.type = 'sawtooth';
+    engineGain = audioCtx.createGain();
+    engineGain.gain.value = 0.04;
+    engineOsc.connect(engineGain).connect(audioCtx.destination);
+    engineOsc.frequency.value = 70;
+    engineOsc.start();
+  } catch(e) {}
+}
+function playBeep(f0,f1,dur,type,vol) {
+  if (!audioCtx) return;
+  const o=audioCtx.createOscillator(); o.type=type||'sine';
+  const g=audioCtx.createGain(); g.gain.value=vol||0.15;
+  o.connect(g).connect(audioCtx.destination);
+  const now=audioCtx.currentTime;
+  o.frequency.setValueAtTime(f0,now);
+  o.frequency.linearRampToValueAtTime(f1, now+dur);
+  g.gain.setValueAtTime(vol||0.15, now);
+  g.gain.linearRampToValueAtTime(0, now+dur);
+  o.start(now); o.stop(now+dur);
+}
+document.addEventListener('touchstart', ensureAudio, { once:true });
+document.addEventListener('mousedown', ensureAudio, { once:true });
+document.addEventListener('click', ensureAudio, { once:true });
+
+function showPopup(text,color) {
+  const el = document.createElement('div');
+  el.className = 'popup';
+  el.textContent = text;
+  el.style.color = color || '#ffd21f';
+  el.style.marginLeft = (Math.random()*40-20)+'px';
+  popupsEl.appendChild(el);
+  setTimeout(()=>el.remove(),1150);
+}
+
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x6fb1e6);
+  scene.fog = new THREE.Fog(0x6fb1e6, 350, 1150);
+
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 1, 3000);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+  sun.position.set(300,500,200);
+  scene.add(sun);
+
+  ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(6000,6000),
+    new THREE.MeshLambertMaterial({ color: 0x53565f })
+  );
+  ground.rotation.x = -Math.PI/2;
+  scene.add(ground);
+
+  playerDroneMesh = makePlaneModel(0xe2e8f0);
+  scene.add(playerDroneMesh);
+
+  trailGeometry = new THREE.BufferGeometry();
+  const trailMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent:true, opacity:0.35 });
+  trailLine = new THREE.Line(trailGeometry, trailMaterial);
+  scene.add(trailLine);
+
+  window.addEventListener('resize', onResize);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ---------- Procedural infinite city ----------
+function seededRandomFn(cx,cz) {
+  let seed = (cx*374761393 ^ cz*668265263) >>> 0;
+  return function() {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ seed>>>15, 1 | seed);
+    t = (t + Math.imul(t ^ t>>>7, 61 | t)) ^ t;
+    return ((t ^ t>>>14) >>> 0) / 4294967296;
   };
+}
 
-  const CATS = [
-    {key:"science", label:"SCIENCE", sub:"Atoms to astrophysics",
-      icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.6" fill="var(--amber)"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(120 12 12)"/></svg>'},
-    {key:"flags", label:"FLAGS", sub:"Colors of the world",
-      icon:'<svg viewBox="0 0 24 24"><line x1="5" y1="3" x2="5" y2="21"/><path d="M5 4 L19 7 L5 11 Z" fill="var(--amber)" stroke="none"/></svg>'},
-    {key:"history", label:"HISTORY", sub:"Empires and events",
-      icon:'<svg viewBox="0 0 24 24"><path d="M6 3h12l-6 9 6 9H6l6-9z"/></svg>'},
-    {key:"geography", label:"GEOGRAPHY", sub:"Places and land",
-      icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="12" x2="21" y2="12"/></svg>'},
-    {key:"general", label:"GENERAL", sub:"Everything, mixed",
-      icon:'<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/><line x1="19.1" y1="4.9" x2="4.9" y2="19.1"/></svg>'}
-  ];
+function createBuilding(x,z,rng) {
+  const w=30+rng()*40, d=30+rng()*40, h=60+rng()*260;
+  const color = buildingColors[Math.floor(rng()*buildingColors.length)];
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({ color }));
+  mesh.position.set(x,h/2,z);
+  scene.add(mesh);
+  const lot = new THREE.Mesh(new THREE.BoxGeometry(w+16,2,d+16), new THREE.MeshLambertMaterial({ color: 0x8f9aa0 }));
+  lot.position.set(x,1,z);
+  scene.add(lot);
+  return { objects:[mesh,lot], data:{ x, z, w, d, h } };
+}
 
-  const MODE_CONFIG = {
-    normal:   {label:"NORMAL",     lives:3, duration:20, base:100, penalty:0,  rounds:10},
-    hard:     {label:"HARD",       lives:2, duration:12, base:150, penalty:25, rounds:8},
-    superhard:{label:"SUPER HARD", lives:1, duration:7,  base:250, penalty:50, rounds:5}
-  };
-  const LETTERS = ["A","B","C","D"];
+function createTree(x,z) {
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(2,2,10,6), new THREE.MeshLambertMaterial({ color: 0x6b4a2f }));
+  trunk.position.set(x,5,z);
+  scene.add(trunk);
+  const leaf = new THREE.Mesh(new THREE.ConeGeometry(9,22,7), new THREE.MeshLambertMaterial({ color: 0x3f7d3a }));
+  leaf.position.set(x,21,z);
+  scene.add(leaf);
+  return [trunk,leaf];
+}
 
-  /* ============ STATE ============ */
-  const state = {
-    device:null, mode:null, category:null,
-    pool:[], idx:0, score:0, lives:0, correctCount:0,
-    timer:null, timeLeft:0, currentChoices:null
-  };
+function makePlaneModel(color) {
+  const g = new THREE.Group();
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0x2d3748 });
+  const propMat = new THREE.MeshLambertMaterial({ color: 0x1a202c, side: THREE.DoubleSide });
 
-  /* ============ HELPERS ============ */
-  function $(id){ return document.getElementById(id); }
-  function shuffle(arr){
-    for(let i=arr.length-1;i>0;i--){
-      const j = Math.floor(Math.random()*(i+1));
-      [arr[i],arr[j]]=[arr[j],arr[i]];
-    }
-    return arr;
-  }
-  function showView(id){
-    document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
-    $("view-"+id).classList.add("active");
-  }
+  const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.8,20,8), new THREE.MeshLambertMaterial({ color }));
+  fuselage.rotation.x = Math.PI/2;
+  g.add(fuselage);
 
-  let actx;
-  function beep(freq,dur,type){
-    try{
-      if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
-      const osc = actx.createOscillator();
-      const gain = actx.createGain();
-      osc.type = type||"square";
-      osc.frequency.value = freq;
-      gain.gain.value = 0.05;
-      osc.connect(gain); gain.connect(actx.destination);
-      osc.start();
-      gain.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+dur);
-      osc.stop(actx.currentTime+dur+0.02);
-    }catch(e){}
-  }
-  function uiClick(){ beep(520,0.05,"square"); }
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(2.2,6,8), new THREE.MeshLambertMaterial({ color }));
+  nose.rotation.x = -Math.PI/2;
+  nose.position.z = -13;
+  g.add(nose);
 
-  function shakeScreen(){
-    const el = $("screen");
-    el.classList.add("shake");
-    setTimeout(()=>el.classList.remove("shake"), 320);
-  }
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(34,1,7), trimMat);
+  wing.position.set(0,0,-1);
+  g.add(wing);
 
-  /* ============ STORAGE (high scores) ============ */
-  async function getHighScore(cat, mode){
-    try{
-      const res = await window.storage.get("hs:"+cat+":"+mode);
-      if(res && res.value) return JSON.parse(res.value).score;
-      return 0;
-    }catch(e){ return 0; }
-  }
-  async function setHighScoreIfBetter(cat, mode, score){
-    try{
-      const current = await getHighScore(cat, mode);
-      if(score > current){
-        await window.storage.set("hs:"+cat+":"+mode, JSON.stringify({score:score}));
-        return true;
-      }
-      return false;
-    }catch(e){ return false; }
-  }
+  const vFin = new THREE.Mesh(new THREE.BoxGeometry(1,7,6), trimMat);
+  vFin.position.set(0,4,9);
+  g.add(vFin);
 
-  /* ============ BOOT SEQUENCE ============ */
-  $("btnStart").addEventListener("click", function(){
-    uiClick();
-    this.disabled = true;
-    this.style.opacity = ".4";
-    const log = $("bootLog");
-    const lines = [
-      "> LOADING KERNEL................. OK",
-      "> CHECKING QUESTION BANK......... OK (75 ENTRIES)",
-      "> AUDIO SUBSYSTEM................ OK",
-      "> READY."
-    ];
-    let i = 0;
-    function next(){
-      if(i < lines.length){
-        const cls = lines[i].includes("OK") || lines[i].includes("READY") ? "ok" : "";
-        log.innerHTML += '<div class="'+cls+'">'+lines[i]+"</div>";
-        i++;
-        setTimeout(next, 340);
-      } else {
-        setTimeout(()=>showView("calibrate"), 500);
+  const hStab = new THREE.Mesh(new THREE.BoxGeometry(14,1,5), trimMat);
+  hStab.position.set(0,0,9);
+  g.add(hStab);
+
+  const prop = new THREE.Mesh(new THREE.CircleGeometry(3.5,8), propMat);
+  prop.position.z = -16;
+  g.add(prop);
+
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(2,11,8), new THREE.MeshBasicMaterial({ color: 0xff8c00 }));
+  flame.rotation.x = Math.PI/2;
+  flame.position.z = 16;
+  flame.visible = false;
+  g.add(flame);
+  g.userData.flame = flame;
+
+  g.userData.propellers = [prop];
+  return g;
+}
+
+function generateChunk(cx,cz) {
+  const key = cx+','+cz;
+  if (loadedChunks.has(key)) return;
+  const rng = seededRandomFn(cx,cz);
+  const originX = cx*CHUNK_SIZE, originZ = cz*CHUNK_SIZE;
+  const record = { objects:[], buildingEntries:[], droneEntries:[], carEntries:[], ringEntries:[] };
+
+  const cellsPerSide = 2, cellSize = CHUNK_SIZE/cellsPerSide;
+  for (let ix=0; ix<cellsPerSide; ix++) {
+    for (let iz=0; iz<cellsPerSide; iz++) {
+      const x = originX + ix*cellSize + cellSize/2 + (rng()-0.5)*20;
+      const z = originZ + iz*cellSize + cellSize/2 + (rng()-0.5)*20;
+      if (Math.sqrt(x*x+z*z) < 110) continue;
+      const r = rng();
+      if (r < 0.12) {
+        record.objects.push(...createTree(x,z));
+      } else if (r < 0.77) {
+        const b = createBuilding(x,z,rng);
+        record.objects.push(...b.objects);
+        record.buildingEntries.push(b.data);
       }
     }
-    next();
-  });
+  }
+  if (rng() < 0.35) {
+    const dx = originX + rng()*CHUNK_SIZE, dz = originZ + rng()*CHUNK_SIZE, dy = 40+rng()*280;
+    const mesh = makePlaneModel(0xf56565);
+    mesh.position.set(dx,dy,dz);
+    scene.add(mesh);
+    record.objects.push(mesh);
+    record.droneEntries.push({ x:dx, y:dy, z:dz, mesh, bob: rng()*Math.PI*2 });
+  }
+  if (rng() < 0.3) {
+    const colors = [0xe53e3e,0xecc94b,0x3182ce,0xffffff];
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(10,6,18), new THREE.MeshLambertMaterial({ color: colors[Math.floor(rng()*colors.length)] }));
+    const axis = rng() < 0.5 ? 'x' : 'z';
+    const lane = originZ + CHUNK_SIZE/2;
+    const start = originX + rng()*CHUNK_SIZE;
+    mesh.position.set(axis==='x'?start:lane, 4, axis==='x'?lane:start);
+    if (axis==='z') mesh.rotation.y = Math.PI/2;
+    scene.add(mesh);
+    record.objects.push(mesh);
+    record.carEntries.push({ mesh, axis, pos:start, speed:30+rng()*30 });
+  }
+  if (rng() < 0.4) {
+    const rx = originX + rng()*CHUNK_SIZE, rz = originZ + rng()*CHUNK_SIZE, ry = 50+rng()*220;
+    const axis = rng() < 0.5 ? 'z' : 'x';
+    const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(18,2.2,8,20), new THREE.MeshLambertMaterial({ color: 0xffd21f }));
+    ringMesh.position.set(rx,ry,rz);
+    if (axis==='x') ringMesh.rotation.y = Math.PI/2;
+    scene.add(ringMesh);
+    record.objects.push(ringMesh);
+    record.ringEntries.push({ x:rx, y:ry, z:rz, axis, mesh:ringMesh, collected:false });
+  }
 
-  /* ============ DEVICE CALIBRATION ============ */
-  document.querySelectorAll(".device-card").forEach(function(card){
-    card.addEventListener("click", function(){
-      uiClick();
-      state.device = card.dataset.device;
-      document.body.className = "device-" + state.device;
-      showView("diagnostic");
-      runDiagnostic();
+  loadedChunks.set(key, record);
+}
+
+function ensureChunksLoaded() {
+  const pcx = Math.floor(dronePos.x/CHUNK_SIZE);
+  const pcz = Math.floor(dronePos.z/CHUNK_SIZE);
+  for (let dx=-LOAD_RADIUS; dx<=LOAD_RADIUS; dx++)
+    for (let dz=-LOAD_RADIUS; dz<=LOAD_RADIUS; dz++)
+      generateChunk(pcx+dx, pcz+dz);
+
+  const toUnload = [];
+  for (const key of loadedChunks.keys()) {
+    const [cx,cz] = key.split(',').map(Number);
+    if (Math.max(Math.abs(cx-pcx), Math.abs(cz-pcz)) > LOAD_RADIUS+UNLOAD_BUFFER) toUnload.push(key);
+  }
+  toUnload.forEach(key => {
+    const record = loadedChunks.get(key);
+    record.objects.forEach(o => scene.remove(o));
+    loadedChunks.delete(key);
+  });
+}
+
+function updateWorld(dt) {
+  const dtS = dt/1000;
+  const t = performance.now();
+  for (const record of loadedChunks.values()) {
+    record.droneEntries.forEach(d => {
+      d.mesh.position.y = d.y + Math.sin(t/600 + d.bob) * 6;
+      d.mesh.userData.propellers.forEach(p => p.rotation.z += dt*0.02);
     });
-  });
+    record.carEntries.forEach(c => {
+      c.pos += c.speed*dtS;
+      if (c.axis==='x') c.mesh.position.x = c.pos; else c.mesh.position.z = c.pos;
+    });
+  }
+  playerDroneMesh.userData.propellers.forEach(p => p.rotation.z += dt*0.03);
+  ground.position.set(dronePos.x, 0, dronePos.z);
+}
 
-  function runDiagnostic(){
-    const log = $("diagLog");
-    const fill = $("diagFill");
-    log.innerHTML = "";
-    fill.style.width = "0%";
-    const lines = [
-      "MEMORY......... OK",
-      "VRAM........... OK",
-      "INPUT DEVICE.... OK",
-      "DISPLAY PROFILE. " + state.device.toUpperCase()
-    ];
-    let i = 0;
-    function next(){
-      if(i < lines.length){
-        log.innerHTML += '<div class="ok">&gt; '+lines[i]+"</div>";
-        fill.style.width = Math.round(((i+1)/lines.length)*100) + "%";
-        i++;
-        setTimeout(next, 320);
-      } else {
-        setTimeout(()=>showView("difficulty"), 500);
+function updateTrail() {
+  const tailOffset = new THREE.Vector3(0,0,12).applyQuaternion(droneQuat);
+  trailPositions.push(dronePos.clone().add(tailOffset));
+  if (trailPositions.length > 40) trailPositions.shift();
+  const arr = new Float32Array(trailPositions.length*3);
+  trailPositions.forEach((p,i) => { arr[i*3]=p.x; arr[i*3+1]=p.y; arr[i*3+2]=p.z; });
+  trailGeometry.setAttribute('position', new THREE.BufferAttribute(arr,3));
+}
+
+function checkCollisions() {
+  for (const record of loadedChunks.values()) {
+    for (const b of record.buildingEntries) {
+      const dx=dronePos.x-b.x, dz=dronePos.z-b.z;
+      const horiz = Math.sqrt(dx*dx+dz*dz);
+      const radius = Math.sqrt((b.w/2)**2 + (b.d/2)**2);
+      if (horiz < radius+PLAYER_RADIUS && dronePos.y < b.h+PLAYER_RADIUS && dronePos.y > -PLAYER_RADIUS) return true;
+    }
+    for (const d of record.droneEntries) {
+      const dx=dronePos.x-d.x, dy=dronePos.y-d.y, dz=dronePos.z-d.z;
+      if (dx*dx+dy*dy+dz*dz < (DRONE_RADIUS+PLAYER_RADIUS)**2) return true;
+    }
+  }
+  return dronePos.y <= 2;
+}
+
+function checkRings() {
+  for (const record of loadedChunks.values()) {
+    for (const r of record.ringEntries) {
+      if (r.collected) continue;
+      const nx = r.axis==='x' ? 1:0, nz = r.axis==='z' ? 1:0;
+      const relX=dronePos.x-r.x, relY=dronePos.y-r.y, relZ=dronePos.z-r.z;
+      const along = relX*nx + relZ*nz;
+      if (Math.abs(along) > 16) continue;
+      const latX = relX - nx*along, latZ = relZ - nz*along;
+      const latDist = Math.sqrt(latX*latX + relY*relY + latZ*latZ);
+      if (latDist < 15) {
+        r.collected = true;
+        r.mesh.visible = false;
+        score += 50;
+        showPopup('RING +50', '#ffd21f');
+        playBeep(600,1200,0.15,'sine',0.15);
       }
     }
-    next();
+  }
+}
+
+function resetGame() {
+  score = 0; mode = 'play';
+  dronePos.set(0,150,0);
+  droneQuat.identity();
+  cumPitchAngle = 0; cumRollAngle = 0;
+  trailPositions = [];
+}
+
+const _tmpQuat = new THREE.Quaternion();
+const _axisX = new THREE.Vector3(1,0,0);
+const _axisZ = new THREE.Vector3(0,0,1);
+const _worldY = new THREE.Vector3(0,1,0);
+const _fwd = new THREE.Vector3(0,0,-1); // Three.js cameras look down -Z by default
+
+function update(dt) {
+  ensureChunksLoaded();
+  updateWorld(dt);
+  if (mode !== 'play') return;
+
+  const dtS = dt/1000;
+  const pInput = Math.max(-45, Math.min(45, pitch)) / 45;
+  const rInput = Math.max(-45, Math.min(45, roll)) / 45;
+
+  const pitchDelta = pInput*MAX_PITCH_RATE*dtS;
+  const rollDelta = -rInput*MAX_ROLL_RATE*dtS;
+  _tmpQuat.setFromAxisAngle(_axisX, pitchDelta); droneQuat.multiply(_tmpQuat);
+  _tmpQuat.setFromAxisAngle(_axisZ, rollDelta); droneQuat.multiply(_tmpQuat);
+
+  cumPitchAngle += pitchDelta;
+  cumRollAngle += rollDelta;
+  if (Math.abs(cumPitchAngle) >= Math.PI*2) {
+    score += 50; showPopup('LOOP! +50', '#63f5a1'); playBeep(500,900,0.2,'triangle',0.15);
+    cumPitchAngle -= Math.sign(cumPitchAngle)*Math.PI*2;
+  }
+  if (Math.abs(cumRollAngle) >= Math.PI*2) {
+    score += 50; showPopup('BARREL ROLL! +50', '#63c7f5'); playBeep(500,900,0.2,'triangle',0.15);
+    cumRollAngle -= Math.sign(cumRollAngle)*Math.PI*2;
   }
 
-  /* ============ DIFFICULTY SELECT ============ */
-  document.querySelectorAll(".diff-card").forEach(function(card){
-    card.addEventListener("click", function(){
-      uiClick();
-      state.mode = card.dataset.mode;
-      $("modeLabel").textContent = MODE_CONFIG[state.mode].label;
-      renderCategoryGrid();
-      showView("category");
-    });
-  });
+  const right = new THREE.Vector3(1,0,0).applyQuaternion(droneQuat);
+  const yawAmount = -right.y * MAX_YAW_RATE * dtS;
+  _tmpQuat.setFromAxisAngle(_worldY, yawAmount);
+  droneQuat.premultiply(_tmpQuat);
 
-  /* ============ CATEGORY SELECT ============ */
-  function renderCategoryGrid(){
-    const grid = $("catGrid");
-    grid.innerHTML = "";
-    CATS.forEach(function(cat){
-      const btn = document.createElement("button");
-      btn.className = "cat-card";
-      btn.dataset.cat = cat.key;
-      btn.innerHTML =
-        '<span class="cat-best" data-best="'+cat.key+'">BEST: —</span>' +
-        cat.icon +
-        '<span class="cname">'+cat.label+'</span>' +
-        '<span class="csub">'+cat.sub+'</span>';
-      btn.addEventListener("click", function(){
-        uiClick();
-        startGame(cat.key);
-      });
-      grid.appendChild(btn);
+  const forward = _fwd.clone().applyQuaternion(droneQuat);
+  const diveFactor = -forward.y;
+  lastSpeed = Math.max(MIN_SPEED, Math.min(MAX_SPEED, SPEED + diveFactor*DIVE_RANGE));
+  if (boostActive) lastSpeed = Math.min(MAX_BOOST_SPEED, lastSpeed + BOOST_BONUS);
+  if (boostActive && !wasBoosting) playBeep(200,900,0.25,'sawtooth',0.2);
+  wasBoosting = boostActive;
+  playerDroneMesh.userData.flame.visible = boostActive;
+  trailLine.material.color.set(boostActive ? 0xffa500 : 0xffffff);
+  dronePos.addScaledVector(forward, lastSpeed*dtS);
 
-      getHighScore(cat.key, state.mode).then(function(best){
-        const el = grid.querySelector('[data-best="'+cat.key+'"]');
-        if(el && best > 0) el.textContent = "BEST: " + best;
-      });
-    });
+  updateTrail();
+  checkRings();
+  score += dt*0.01;
+
+  if (checkCollisions()) {
+    mode = 'crashed';
+    playBeep(300,60,0.4,'sawtooth',0.2);
   }
+}
 
-  /* ============ GAME ============ */
-  function buildPool(category, mode){
-    const tiers = mode === "normal" ? [1,2] : mode === "hard" ? [2,3] : [3];
-    let source;
-    if(category === "general"){
-      source = [].concat(QUESTIONS.science, QUESTIONS.flags, QUESTIONS.history, QUESTIONS.geography, QUESTIONS.misc);
-    } else {
-      source = QUESTIONS[category];
-    }
-    const filtered = shuffle(source.filter(function(x){ return tiers.indexOf(x.t) !== -1; }));
-    const n = MODE_CONFIG[mode].rounds;
-    return filtered.slice(0, Math.min(n, filtered.length));
+function updateCameraAndDrone() {
+  if (firstPerson) {
+    camera.position.copy(dronePos);
+    camera.quaternion.copy(droneQuat);
+    playerDroneMesh.visible = false;
+  } else {
+    const offset = new THREE.Vector3(0,CHASE_HEIGHT,CHASE_DIST).applyQuaternion(droneQuat);
+    camera.position.copy(dronePos).add(offset);
+    camera.quaternion.copy(droneQuat);
+    playerDroneMesh.visible = true;
+    playerDroneMesh.position.copy(dronePos);
+    playerDroneMesh.quaternion.copy(droneQuat);
   }
+}
 
-  function startGame(category){
-    state.category = category;
-    state.pool = buildPool(category, state.mode);
-    state.idx = 0;
-    state.score = 0;
-    state.lives = MODE_CONFIG[state.mode].lives;
-    state.correctCount = 0;
-    $("qtotal").textContent = state.pool.length;
-    updateHUD();
-    showView("game");
-    loadQuestion();
-  }
+function handleButtonPress() {
+  if (mode === 'crashed') resetGame();
+  else firstPerson = !firstPerson;
+}
 
-  function updateHUD(){
-    $("score").textContent = state.score;
-    $("qnum").textContent = Math.min(state.idx+1, state.pool.length);
-    const total = MODE_CONFIG[state.mode].lives;
-    let html = "";
-    for(let i=0;i<total;i++){
-      html += '<span class="life '+(i < state.lives ? "" : "lost")+'"></span>';
-    }
-    $("lives").innerHTML = html;
-  }
+// --- input: drag to tilt (release to recenter), tap for the button ---
+window.addEventListener('mousedown', e => { dragging = true; moved = false; lastX = e.clientX; lastY = e.clientY; });
+window.addEventListener('mouseup', () => { dragging = false; pitch = 0; roll = 0; });
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  roll = Math.max(-45, Math.min(45, roll + (e.clientX - lastX) * 0.5));
+  pitch = Math.max(-45, Math.min(45, pitch - (e.clientY - lastY) * 0.4));
+  if (Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY) > 3) moved = true;
+  lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener('click', () => { if (!moved) handleButtonPress(); });
 
-  function getShuffledChoices(q){
-    const arr = q.c.map(function(text, i){ return {text:text, correct:i===q.a}; });
-    shuffle(arr);
-    return arr;
-  }
+window.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  dragging = true; moved = false; lastX = t.clientX; lastY = t.clientY;
+  boostActive = e.touches.length >= 2;
+  e.preventDefault();
+}, { passive:false });
+window.addEventListener('touchmove', e => {
+  const t = e.touches[0];
+  roll = Math.max(-45, Math.min(45, roll + (t.clientX - lastX) * 0.5));
+  pitch = Math.max(-45, Math.min(45, pitch - (t.clientY - lastY) * 0.4));
+  if (Math.abs(t.clientX - lastX) + Math.abs(t.clientY - lastY) > 3) moved = true;
+  lastX = t.clientX; lastY = t.clientY;
+  boostActive = e.touches.length >= 2;
+  e.preventDefault();
+}, { passive:false });
+window.addEventListener('touchend', e => {
+  dragging = false; pitch = 0; roll = 0;
+  boostActive = e.touches.length >= 2;
+  if (!moved) handleButtonPress();
+  e.preventDefault();
+}, { passive:false });
+window.addEventListener('keydown', e => { if (e.code === 'Space') { boostActive = true; e.preventDefault(); } });
+window.addEventListener('keyup', e => { if (e.code === 'Space') boostActive = false; });
 
-  function loadQuestion(){
-    const q = state.pool[state.idx];
-    $("catTag").textContent = q.cat;
-    $("questionText").textContent = q.q;
-    $("feedback").textContent = "";
-    $("feedback").className = "feedback";
-    updateHUD();
+function animate(now) {
+  const dt = now - lastTime; lastTime = now;
+  update(dt);
+  updateCameraAndDrone();
+  renderer.render(scene, camera);
 
-    state.currentChoices = getShuffledChoices(q);
-    const box = $("answers");
-    box.innerHTML = "";
-    state.currentChoices.forEach(function(choice, i){
-      const btn = document.createElement("button");
-      btn.className = "answer-btn";
-      btn.dataset.idx = i;
-      btn.innerHTML = '<span class="ans-letter">'+LETTERS[i]+'</span><span class="ans-text">'+choice.text+'</span>';
-      btn.addEventListener("click", function(){ handleAnswer(i); });
-      box.appendChild(btn);
-    });
+  camera.fov += ((boostActive ? BOOST_FOV : NORMAL_FOV) - camera.fov) * 0.12;
+  camera.updateProjectionMatrix();
 
-    startTimer();
-  }
+  if (engineOsc) engineOsc.frequency.setTargetAtTime(60+lastSpeed*0.55, audioCtx.currentTime, 0.05);
 
-  function startTimer(){
-    clearInterval(state.timer);
-    const cfg = MODE_CONFIG[state.mode];
-    state.timeLeft = cfg.duration;
-    updateTimerUI();
-    state.timer = setInterval(function(){
-      state.timeLeft -= 0.1;
-      if(state.timeLeft <= 0){
-        state.timeLeft = 0;
-        updateTimerUI();
-        clearInterval(state.timer);
-        handleAnswer(-1);
-      } else {
-        updateTimerUI();
-      }
-    }, 100);
-  }
+  scoreEl.textContent = 'score: ' + Math.floor(score) + '   speed: ' + Math.floor(lastSpeed);
+  gameoverEl.classList.toggle('hidden', mode !== 'crashed');
 
-  function updateTimerUI(){
-    const cfg = MODE_CONFIG[state.mode];
-    const pct = Math.max(0, (state.timeLeft / cfg.duration) * 100);
-    const fill = $("timerFill");
-    fill.style.width = pct + "%";
-    fill.classList.toggle("warn", pct < 30);
-  }
+  requestAnimationFrame(animate);
+}
 
-  function handleAnswer(choiceIdx){
-    clearInterval(state.timer);
-    document.querySelectorAll(".answer-btn").forEach(function(b){ b.setAttribute("disabled","true"); });
-
-    const cfg = MODE_CONFIG[state.mode];
-    const correctIdx = state.currentChoices.findIndex(function(c){ return c.correct; });
-    const correct = choiceIdx === correctIdx;
-    const fb = $("feedback");
-
-    if(correct){
-      const timeBonus = Math.round((state.timeLeft / cfg.duration) * 50);
-      const pts = cfg.base + timeBonus;
-      state.score += pts;
-      state.correctCount++;
-      markButton(choiceIdx, "correct");
-      fb.textContent = "CORRECT +" + pts;
-      fb.className = "feedback good";
-      beep(880, 0.12, "square");
-    } else {
-      state.score = Math.max(0, state.score - cfg.penalty);
-      state.lives--;
-      if(choiceIdx >= 0) markButton(choiceIdx, "wrong");
-      markButton(correctIdx, "correct");
-      fb.textContent = choiceIdx === -1 ? "TIME'S UP" : ("WRONG" + (cfg.penalty ? " −" + cfg.penalty : ""));
-      fb.className = "feedback bad";
-      beep(160, 0.25, "sawtooth");
-      shakeScreen();
-    }
-    updateHUD();
-
-    setTimeout(function(){
-      if(state.lives <= 0){ endGame(); return; }
-      state.idx++;
-      if(state.idx >= state.pool.length){ endGame(); return; }
-      loadQuestion();
-    }, 1100);
-  }
-
-  function markButton(idx, cls){
-    const btn = document.querySelector('.answer-btn[data-idx="'+idx+'"]');
-    if(btn) btn.classList.add(cls);
-  }
-
-  async function endGame(){
-    clearInterval(state.timer);
-    showView("gameover");
-    $("finalScore").textContent = state.score;
-    const pct = state.pool.length ? Math.round((state.correctCount / state.pool.length) * 100) : 0;
-    $("finalStats").textContent = state.correctCount + " / " + state.pool.length + " CORRECT · " + pct + "%";
-    $("hsBadge").hidden = true;
-    const isNew = await setHighScoreIfBetter(state.category, state.mode, state.score);
-    if(isNew) $("hsBadge").hidden = false;
-  }
-
-  $("btnPlayAgain").addEventListener("click", function(){ uiClick(); startGame(state.category); });
-  $("btnChangeCat").addEventListener("click", function(){ uiClick(); renderCategoryGrid(); showView("category"); });
-  $("btnMainMenu").addEventListener("click", function(){ uiClick(); showView("difficulty"); });
-
-  /* ============ KEYBOARD SHORTCUTS ============ */
-  document.addEventListener("keydown", function(e){
-    if(!$("view-game").classList.contains("active")) return;
-    const map = {"1":0,"2":1,"3":2,"4":3,"a":0,"b":1,"c":2,"d":3,"A":0,"B":1,"C":2,"D":3};
-    if(map.hasOwnProperty(e.key)){
-      const btn = document.querySelector('.answer-btn[data-idx="'+map[e.key]+'"]');
-      if(btn && !btn.hasAttribute("disabled")) handleAnswer(map[e.key]);
-    }
-  });
-})();
+init();
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
